@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy_financial as npf
 import pandas as pd
 
+
 class Loan:
 
     def __init__(self, rate, term, loan_amount, amortization_type, start=dt.date.today().isoformat()):
@@ -68,14 +69,16 @@ class Loan:
             extra_pmt += 1
         return extra_pmt, self.pmt + extra_pmt
 
-    def edit_loan(self, new_rate, new_term, new_loan_amount):
+    def edit_loan(self, new_rate, new_term, new_loan_amount, new_amortization_type):
         self.rate = new_rate / 1200
         self.periods = new_term * 12
         self.loan_amount = new_loan_amount
+        self.amortization_type = new_amortization_type
         self.pmt = npf.pmt(self.rate, self.periods, -self.loan_amount)
         self.pmt_str = f" € {self.pmt:,.2f}"
         self.table = self.loan_table()
 
+    @staticmethod
     def compare_loans(loan1, loan2):
         print("Comparison of two loans:")
         print(f"Loan 1 - Payment: {loan1.pmt_str}, Payoff Date: {loan1.table.index.date[-1]}")
