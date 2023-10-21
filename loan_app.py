@@ -1,92 +1,137 @@
+from loan_analyst import Loan
 import sys
 from time import sleep
-from loan_analyst import Loan
 
 def display_menu():
     print("""
-    Menu
-    -----------------
-    1. Create New Loan
-    2. Edit Loan Parameters
-    3. Compare Loans
-    4. Show Payment
-    5. Show Amortization Table
-    6. Show Loan Summary
-    7. Plot Balances
-    8. Show size of payment to payoff in specific time
-    9. Show effect of adding amount to each payment
+                               Menu
+    ----------------------------------------------------------
+    1. Start new loan
+    2. Edit loan parameters
+    3. Show Payment
+    4. Show Amortization Table
+    5. Show Loan Summary
+    6. Plot Balances
+    7. Show size of payment to payoff in specific time
+    8. Show effect of adding amount to each payment
+    9. Compare two loans
     10. Quit
+    ----------------------------------------------------------
+
     """)
 
-def create_new_loan():
+
+def get_amortization_type():
+    while True:
+        amortization_type = input("Choose amortization type (French or Italian): ").strip().title()
+        if amortization_type in ["French", "Italian"]:
+            return amortization_type
+        else:
+            print("Invalid amortization type. Please choose 'French' or 'Italian'.")
+
+def new_loan(rate, term, pv, amortization_type):
     rate = float(input("Enter interest rate: "))
-    term = int(input("Enter loan term: "))
-    pv = float(input("Enter amount borrowed: "))
-    loan = Loan(rate, term, pv)
+    term = int(input("Enter loan term (in years): "))
+    pv = float(input("Enter loan amount: "))
+    amortization_type = get_amortization_type()
+    loan = Loan(rate, term, pv, amortization_type)
     print("Loan initialized")
     sleep(0.75)
     return loan
 
-def edit_loan_parameters(loan):
-    rate = float(input("Enter new interest rate: "))
-    term = int(input("Enter new loan term: "))
-    pv = float(input("Enter new amount borrowed: "))
-    loan.edit_loan_parameters(rate, term, pv)
-    print("Loan parameters updated")
-    sleep(0.75)
 
-def compare_loans(loans):
-    Loan.compare_loans()
+
+def pmt(loan):
+    print(f" The payment is €{loan.pmt_str}")
+
+
+def amort(loan):
+    print(loan.table)
+
+
+def summary(loan):
+    loan.summary()
+
+
+def plot(loan):
+    loan.plot_balances()
+
+
+def pay_faster(loan):
+    amt = float(input("Enter extra monthly payment: "))
+    new_term = loan.pay_early(amt)
+    print(f"Paid off in {new_term} years")
+
+
+def pay_early(loan):
+    years_to_pay = int(input("Enter years to debt free: "))
+    result = loan.retire_debt(years_to_pay)
+    print(f"Monthly extra: ${result[0]:,.2f} \tTotal Payment: €{result[1]:,.2f}")
+
+def edit_loan(loan):
+    new_rate = float(input("Enter new interest rate: "))
+    new_term = int(input("Enter new loan term: "))
+    new_loan_amount = float(input("Enter new amount borrowed: "))
+    loan.edit_loan(new_rate, new_term, new_loan_amount)
+    print("Loan parameters updated.")
+    sleep(1)
+
+def compare_loans(loan1, loan2):
+    Loan.compare_loans(loan1, loan2)
     sleep(2)
 
+
+action = {'1': new_loan, '2': edit_loan, '3': pmt, '4': amort,
+          '5': summary, '6': plot, '7': pay_early, '8':pay_faster, '9': compare_loans}
+
+
+# program flow
 def main():
-    loans = []
+    loan = None  # Initialize loan as None
     while True:
         display_menu()
         choice = input("Enter your selection: ")
         if choice == '1':
-            loan = create_new_loan()
-            loans.append(loan)
-
+            rate = float(input("Enter interest rate: "))
+            term = int(input("Enter loan term: "))
+            pv = float(input("Enter amount borrowed: "))
+            amortization_type = get_amortization_type()
+            loan = Loan(rate, term, pv, amortization_type)
+            print("Loan initialized")
+            sleep(0.75)
         elif choice == '2':
-            if not loans:
-                print("No loans available. Create a loan first.")
+            if loan is not None:
+                edit_loan(loan)
             else:
-                compare_loans(loans)
-                loan_choice = int(input("Enter the loan number to edit: ")) - 1
-                if 0 <= loan_choice < len(loans):
-                    edit_loan_parameters(loans[loan_choice])
-                else:
-                    print("Invalid loan number.")
-                sleep(1)
-
-        elif choice == '3':
-            compare_loans(loans)
-
-        elif choice in '456789':
-            if not loans:
-                print("No loans available. Create a loan first.")
-            else:
-                compare_loans(loans)
-                loan_choice = int(input("Enter the loan number: ")) - 1
-                if 0 <= loan_choice < len(loans):
-                    action_map = {'4': loans[loan_choice].pmt,
-                                  '5': loans[loan_choice].loan_table,
-                                  '6': loans[loan_choice].summary,
-                                  '7': loans[loan_choice].plot_balances,
-                                  '8': loans[loan_choice].pay_early,
-                                  '9': loans[loan_choice].retire_debt}
-                    action_map[choice]()
-                else:
-                    print("Invalid loan number.")
+                print("No Loan setup. Set up a new loan first.")
                 sleep(2)
 
+        elif choice in '345678':
+            try:
+                action[choice](loan)
+                sleep(2)
+            except NameError:
+                print("No Loan setup")
+                print("Set up a new loan")
+                sleep(2)
+
+        elif choice == '9':
+            if loan is not None:
+                # Create a second loan for comparison
+                rate = float(input("Enter the interest rate for the second loan: "))
+                term = int(input("Enter the loan term for the second loan: "))
+                pv = float(input("Enter the amount borrowed for the second loan: "))
+                loan2 = Loan(rate, term, pv)
+                compare_loans(loan, loan2)
+            else:
+                print("No Loan setup. Set up a new loan first.")
+                sleep(2)
         elif choice == '10':
             print("Goodbye")
             sys.exit()
-
         else:
             print("Please enter a valid selection")
+
 
 if __name__ == "__main__":
     main()
