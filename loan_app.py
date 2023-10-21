@@ -2,21 +2,25 @@ from loan_analyst import Loan
 import sys
 from time import sleep
 
+#TODO: allow the user to choose which of the two loans to work with
+
 def display_menu():
     print("""
-                               Menu
-    ----------------------------------------------------------
-    1. Start new loan
-    2. Edit loan parameters
-    3. Show Payment
-    4. Show Amortization Table
-    5. Show Loan Summary
-    6. Plot Balances
-    7. Show size of payment to payoff in specific time
-    8. Show effect of adding amount to each payment
-    9. Compare two loans
-    10. Quit
-    ----------------------------------------------------------
+    
+    -------------------------------------------------------------------------------
+    |                                    Menu                                     |
+    -------------------------------------------------------------------------------
+    |                       1. Start new loan                                     |
+    |                       2. Edit loan parameters                               |
+    |                       3. Show Payment                                       |
+    |                       4. Show Amortization Table                            |
+    |                       5. Show Loan Summary                                  |
+    |                       6. Plot Balances                                      |
+    |                       7. Show size of payment to payoff in specific time    |
+    |                       8. Show effect of adding amount to each payment       |
+    |                       9. Compare two loans                                  |
+    |                       10. Quit                                              |
+    ------------------------------------------------------------------------------
 
     """)
 
@@ -32,7 +36,7 @@ def get_amortization_type():
 def new_loan(rate, term, pv, amortization_type):
     rate = float(input("Enter interest rate: "))
     term = int(input("Enter loan term (in years): "))
-    pv = float(input("Enter loan amount: "))
+    pv = float(input("Enter amount borrowed: "))
     amortization_type = get_amortization_type()
     loan = Loan(rate, term, pv, amortization_type)
     print("Loan initialized")
@@ -40,9 +44,8 @@ def new_loan(rate, term, pv, amortization_type):
     return loan
 
 
-
 def pmt(loan):
-    print(f" The payment is €{loan.pmt_str}")
+    print(f" The payment is {loan.pmt_str}")
 
 
 def amort(loan):
@@ -72,7 +75,8 @@ def edit_loan(loan):
     new_rate = float(input("Enter new interest rate: "))
     new_term = int(input("Enter new loan term: "))
     new_loan_amount = float(input("Enter new amount borrowed: "))
-    loan.edit_loan(new_rate, new_term, new_loan_amount)
+    new_amortization_type = get_amortization_type()  # Aggiungi la modifica dell'amortization_type
+    loan.edit_loan(new_rate, new_term, new_loan_amount, new_amortization_type)
     print("Loan parameters updated.")
     sleep(1)
 
@@ -121,7 +125,8 @@ def main():
                 rate = float(input("Enter the interest rate for the second loan: "))
                 term = int(input("Enter the loan term for the second loan: "))
                 pv = float(input("Enter the amount borrowed for the second loan: "))
-                loan2 = Loan(rate, term, pv)
+                amortization_type = get_amortization_type()
+                loan2 = Loan(rate, term, pv, amortization_type)
                 compare_loans(loan, loan2)
             else:
                 print("No Loan setup. Set up a new loan first.")
