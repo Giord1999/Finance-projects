@@ -43,7 +43,12 @@ def new_loan(rate, term, pv, amortization_type):
 
 
 def pmt(loan):
-    print(f" The payment is {loan.pmt_str}")
+    if loan.amortization_type == "French":
+        print(f" The French payment is {loan.pmt_str}")
+    elif loan.amortization_type == "Italian":
+        # Calcola la rata per l'ammortamento italiano
+        italian_payment = loan.table['Payment'].iloc[0]
+        print(f" The Italian payment is €{italian_payment:,.2f}")
 
 
 def amort(loan):
