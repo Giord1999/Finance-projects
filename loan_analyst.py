@@ -4,6 +4,17 @@ import matplotlib.pyplot as plt
 import numpy_financial as npf
 import pandas as pd
 
+"""
+Autore del codice da cui ho preso ispirazione: @mmcarthy
+
+In questa versione del codice ho apportato delle sostanziali modifiche allo script di base. Ho inserito due tipologie di ammortamento (Italiano e Francese),
+ho consentito all'utente di confrontare due prestiti, di modificarne i parametri e di scegliere con quale dei due prestiti lavorare.
+
+Sentitevi liberi di fare dei commenti al codice e di lasciare suggerimenti. 
+
+Sun Oct. 2 23 13:41
+
+"""
 
 class Loan:
     #Definiamo i parametri del prestito e scriviamo una funzione che consente di vedere quale prestito è attivo
@@ -67,14 +78,17 @@ class Loan:
         plt.legend(loc=8)
         plt.show()
 
-    #Così come è utile riassumere le informazioni principali del mutuo
+    #Così come è utile riassumere le informazioni principali del mutuo sulla base - anche - del tipo di ammortamento utilizzato
     def summary(self):
-        amort = self.table
         print("Summary")
         print("-" * 30)
-        print(f'Payment: {self.pmt_str:>21}')
-        print(f'{"Payoff Date:":19s} {amort.index.date[-1]}')
-        print(f'Interest Paid:€{amort.Interest.cumsum()[-1]:>15,.2f}')
+        if self.amortization_type == "French":
+            print(f'Payment: {self.pmt_str:>21}')
+        elif self.amortization_type == "Italian":
+            italian_payment = self.table['Payment'].iloc[0]
+            print(f'Payment (Italian Amortization): €{italian_payment:,.2f}')
+        print(f'{"Payoff Date:":19s} {self.table.index.date[-1]}')
+        print(f'Interest Paid: €{self.table["Interest"].cumsum()[-1]:,.2f}')
         print("-" * 30)
 
     #Aggiungiamo qualche bonus: 1: vediamo cosa succede quando paghiamo di più
