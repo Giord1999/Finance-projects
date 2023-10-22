@@ -78,7 +78,7 @@ def edit_loan(loan):
     new_rate = float(input("Enter new interest rate: "))
     new_term = int(input("Enter new loan term: "))
     new_loan_amount = float(input("Enter new amount borrowed: "))
-    new_amortization_type = get_amortization_type()  # Aggiungi la modifica dell'amortization_type
+    new_amortization_type = get_amortization_type()  # Aggiungi la modifica del tipo di ammortamento
     loan.edit_loan(new_rate, new_term, new_loan_amount, new_amortization_type)
     print("Loan parameters updated.")
     sleep(1)
