@@ -2,7 +2,6 @@ from loan_analyst import Loan
 import sys
 from time import sleep
 
-#TODO: allow the user to choose which of the two loans to work with
 
 def display_menu():
     print("""
@@ -23,7 +22,6 @@ def display_menu():
     ------------------------------------------------------------------------------
 
     """)
-
 
 def get_amortization_type():
     while True:
@@ -69,7 +67,7 @@ def pay_faster(loan):
 def pay_early(loan):
     years_to_pay = int(input("Enter years to debt free: "))
     result = loan.retire_debt(years_to_pay)
-    print(f"Monthly extra: ${result[0]:,.2f} \tTotal Payment: €{result[1]:,.2f}")
+    print(f"Monthly extra: €{result[0]:,.2f} \tTotal Payment: €{result[1]:,.2f}")
 
 def edit_loan(loan):
     new_rate = float(input("Enter new interest rate: "))
@@ -81,6 +79,7 @@ def edit_loan(loan):
     sleep(1)
 
 def compare_loans(loan1, loan2):
+    # Chiamiamo il metodo `compare_loans` della classe `Loan` per confrontare i due prestiti
     Loan.compare_loans(loan1, loan2)
     sleep(2)
 
@@ -91,7 +90,9 @@ action = {'1': new_loan, '2': edit_loan, '3': pmt, '4': amort,
 
 # program flow
 def main():
-    loan = None  # Initialize loan as None
+    active_loan1 = None
+    active_loan2 = None
+
     while True:
         display_menu()
         choice = input("Enter your selection: ")
@@ -103,14 +104,55 @@ def main():
             loan = Loan(rate, term, pv, amortization_type)
             print("Loan initialized")
             sleep(0.75)
+            active_loan1 = loan  # Set the newly created loan as the active loan
+
         elif choice == '2':
-            if loan is not None:
-                edit_loan(loan)
+            if active_loan1 and active_loan2:
+                print("Active loans:")
+                print("1. Active Loan 1")
+                print("2. Active Loan 2")
+                loan_choice = input("Select the active loan (1 or 2): ")
+                if loan_choice == '1':
+                    loan = active_loan1
+                elif loan_choice == '2':
+                    loan = active_loan2
+                else:
+                    print("Invalid choice. Please select 1 or 2.")
+                    continue
+            elif active_loan1:
+                loan = active_loan1
+            elif active_loan2:
+                loan = active_loan2
             else:
-                print("No Loan setup. Set up a new loan first.")
+                print("No active loans. Set up a new loan first.")
                 sleep(2)
+                continue
+
+            edit_loan(loan)  # Chiamata alla funzione per modificare il prestito
+
 
         elif choice in '345678':
+            if active_loan1 and active_loan2:
+                print("Active loans:")
+                print("1. Active Loan 1")
+                print("2. Active Loan 2")
+                loan_choice = input("Select the active loan (1 or 2): ")
+                if loan_choice == '1':
+                    loan = active_loan1
+                elif loan_choice == '2':
+                    loan = active_loan2
+                else:
+                    print("Invalid choice. Please select 1 or 2.")
+                    continue
+            elif active_loan1:
+                loan = active_loan1
+            elif active_loan2:
+                loan = active_loan2
+            else:
+                print("No active loans. Set up a new loan first.")
+                sleep(2)
+                continue
+
             try:
                 action[choice](loan)
                 sleep(2)
@@ -120,14 +162,14 @@ def main():
                 sleep(2)
 
         elif choice == '9':
-            if loan is not None:
-                # Create a second loan for comparison
-                rate = float(input("Enter the interest rate for the second loan: "))
-                term = int(input("Enter the loan term for the second loan: "))
-                pv = float(input("Enter the amount borrowed for the second loan: "))
+            if active_loan1 is not None:
+                rate = float(input("Enter interest rate for the second loan: "))
+                term = int(input("Enter loan term for the second loan: "))
+                pv = float(input("Enter amount borrowed for the second loan: "))
                 amortization_type = get_amortization_type()
                 loan2 = Loan(rate, term, pv, amortization_type)
-                compare_loans(loan, loan2)
+                compare_loans(active_loan1, loan2)
+                active_loan2 = loan2  # Set the second loan as the active loan
             else:
                 print("No Loan setup. Set up a new loan first.")
                 sleep(2)
