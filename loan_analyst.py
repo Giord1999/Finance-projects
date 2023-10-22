@@ -4,10 +4,9 @@ import matplotlib.pyplot as plt
 import numpy_financial as npf
 import pandas as pd
 
-#TODO: allow the user to choose which of the two loans to work with
 
 class Loan:
-
+    #Definiamo i parametri del prestito e scriviamo una funzione che consente di vedere quale prestito è attivo
     def __init__(self, rate, term, loan_amount, amortization_type, start=dt.date.today().isoformat()):
         self.rate = rate / 1200
         self.periods = term * 12
@@ -17,9 +16,14 @@ class Loan:
         self.pmt_str = f"€ {self.pmt:,.2f}"
         self.amortization_type = amortization_type
         self.table = self.loan_table()
+        
+    def set_as_active_loan(self):
+        active_loan = self
 
+    #Definiamo la struttura del piano d'ammortamento in base ai due metodi principali (Italiano o Francese)
     def loan_table(self):
         periods = [self.start + relativedelta(months=x) for x in range(self.periods)]
+        #Differenziamo i due tipi di ammortamento
         if self.amortization_type == "French":
             interest = [npf.ipmt(self.rate, month, self.periods, -self.loan_amount)
                         for month in range(1, self.periods + 1)]
@@ -54,6 +58,7 @@ class Loan:
 
         return table.round(2)
 
+    #Potrebbe essere utile pure rappresentare graficamente i risultati
     def plot_balances(self):
         amort = self.loan_table()
         plt.plot(amort.Balance, label='Balance')
@@ -62,6 +67,7 @@ class Loan:
         plt.legend(loc=8)
         plt.show()
 
+    #Così come è utile riassumere le informazioni principali del mutuo
     def summary(self):
         amort = self.table
         print("Summary")
@@ -71,15 +77,18 @@ class Loan:
         print(f'Interest Paid:€{amort.Interest.cumsum()[-1]:>15,.2f}')
         print("-" * 30)
 
+    #Aggiungiamo qualche bonus: 1: vediamo cosa succede quando paghiamo di più
     def pay_early(self, extra_amt):
         return f'{round(npf.nper(self.rate, self.pmt + extra_amt, -self.loan_amount) / 12, 2)}'
 
+    #2: Vediamo cosa succede quando impostiamo un tempo specifico per essere liberi dal mutuo
     def retire_debt(self, years_to_debt_free):
         extra_pmt = 1
         while npf.nper(self.rate, self.pmt + extra_pmt, -self.loan_amount) / 12 > years_to_debt_free:
             extra_pmt += 1
         return extra_pmt, self.pmt + extra_pmt
 
+    #3: aggiungiamo la possibilità di modificare i parametri del prestito 
     def edit_loan(self, new_rate, new_term, new_loan_amount, new_amortization_type):
         self.rate = new_rate / 1200
         self.periods = new_term * 12
@@ -89,19 +98,40 @@ class Loan:
         self.pmt_str = f" € {self.pmt:,.2f}"
         self.table = self.loan_table()
 
+    #4: aggiungiamo la possibilità di confrontare due prestiti diversi
     @staticmethod
     def compare_loans(loan1, loan2):
-        print("Comparison of two loans:")
-        print(f"Loan 1 - Payment: {loan1.pmt_str}, Payoff Date: {loan1.table.index.date[-1]}, Interest Paid: €{loan1.table['Interest'].cumsum().iloc[-1]:,.2f}")
-        print(f"Loan 2 - Payment: {loan2.pmt_str}, Payoff Date: {loan2.table.index.date[-1]}, Interest Paid: €{loan2.table['Interest'].cumsum().iloc[-1]:,.2f}")
+        loan1.set_as_active_loan()
+        loan2.set_as_active_loan()
         
-        if loan1.pmt < loan2.pmt:
+        print("Comparison of two loans:")
+        print("-" * 30)
+        
+        # Calcola la rata mensile effettiva in base al tipo di ammortamento per ciascun prestito
+        if loan1.amortization_type == "French":
+            loan1_monthly_payment = loan1.pmt
+        elif loan1.amortization_type == "Italian":
+            loan1_monthly_payment = loan1.table['Payment'].iloc[0]
+        
+        if loan2.amortization_type == "French":
+            loan2_monthly_payment = loan2.pmt
+        elif loan2.amortization_type == "Italian":
+            loan2_monthly_payment = loan2.table['Payment'].iloc[0]
+        
+        print(f"Loan 1 - Monthly Payment: €{loan1_monthly_payment:,.2f}")
+        print(f"Loan 2 - Monthly Payment: €{loan2_monthly_payment:,.2f}")
+        
+        if loan1_monthly_payment < loan2_monthly_payment:
             print("Loan 1 has a lower monthly payment.")
-        elif loan2.pmt < loan1.pmt:
+        elif loan2_monthly_payment < loan1_monthly_payment:
             print("Loan 2 has a lower monthly payment.")
         else:
             print("Both loans have the same monthly payment.")
-
+        
+        # Altri confronti (payoff date, interesse pagato) rimangono invariati
+        print(f"Loan 1 - Payoff Date: {loan1.table.index.date[-1]}, Interest Paid: €{loan1.table['Interest'].cumsum().iloc[-1]:,.2f}")
+        print(f"Loan 2 - Payoff Date: {loan2.table.index.date[-1]}, Interest Paid: €{loan2.table['Interest'].cumsum().iloc[-1]:,.2f}")
+        
         if loan1.table.index.date[-1] < loan2.table.index.date[-1]:
             print("Loan 1 has an earlier payoff date.")
         elif loan2.table.index.date[-1] < loan1.table.index.date[-1]:
