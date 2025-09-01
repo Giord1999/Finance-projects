@@ -1,0 +1,456 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy.optimize import fsolve
+import warnings
+warnings.filterwarnings('ignore')
+
+class Model:
+    """
+    Simulazione di un modello per la valutazione del rischio aziendale in presenza di politiche monetarie espansive
+    """
+    
+    def __init__(self):
+        self.results = {}
+        
+    def calculate_npv(self, cash_flows, discount_rate, initial_investment=0):
+        """Calcola il Net Present Value"""
+        if initial_investment == 0 and len(cash_flows) > 0:
+            initial_investment = abs(cash_flows[0]) if cash_flows[0] < 0 else 0
+            cash_flows = cash_flows[1:] if cash_flows[0] < 0 else cash_flows
+            
+        npv = -initial_investment
+        for t, cf in enumerate(cash_flows, 1):
+            npv += cf / (1 + discount_rate) ** t
+        return npv
+    
+    def calculate_duration(self, cash_flows, discount_rate):
+        """Calcola la Duration secondo Macaulay"""
+        present_values = []
+        weighted_times = []
+        
+        for t, cf in enumerate(cash_flows, 1):
+            pv = cf / (1 + discount_rate) ** t
+            present_values.append(pv)
+            weighted_times.append(t * pv)
+        
+        total_pv = sum(present_values)
+        total_weighted_time = sum(weighted_times)
+        
+        if total_pv == 0:
+            return 0
+        
+        return total_weighted_time / total_pv
+    
+    def create_bridge_projects(self):
+        """Crea i progetti ponte di legno e acciaio come esempio di progetti rispettivamente meno capital intensive e più capital intensive"""
+        
+        # Ponte di legno: 2000 investimento, 1000 per 3 anni
+        wooden_bridge = {
+            'name': 'Ponte di Legno',
+            'initial_investment': 2000,
+            'cash_flows': [1000, 1000, 1000],
+            'color': 'brown'
+        }
+        
+        # Ponte di acciaio: 5000 investimento, 0 per 2 anni, poi 1000 per 8 anni  
+        steel_bridge = {
+            'name': 'Ponte di Acciaio',
+            'initial_investment': 5000,
+            'cash_flows': [0, 0, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000],
+            'color': 'gray'
+        }
+        
+        return wooden_bridge, steel_bridge
+    
+    def find_indifference_rate(self, project1, project2, tolerance=1e-6):
+        """Trova il tasso di interesse per cui i due progetti hanno lo stesso NPV"""
+        
+        def npv_difference(rate):
+            npv1 = self.calculate_npv(project1['cash_flows'], rate, project1['initial_investment'])
+            npv2 = self.calculate_npv(project2['cash_flows'], rate, project2['initial_investment'])
+            return npv1 - npv2
+        
+        # Cerca il tasso tra 0 e 20%
+        try:
+            rate = fsolve(npv_difference, 0.05)[0]
+            return max(0, min(0.2, rate))  # Limita tra 0 e 20%
+        except:
+            return 0.05  # Default
+    
+    def sensitivity_analysis(self, projects, rate_range=(0.01, 0.15, 0.005)):
+        """Analisi di sensibilità per diversi tassi di interesse"""
+        
+        rates = np.arange(rate_range[0], rate_range[1], rate_range[2])
+        results = []
+        
+        for rate in rates:
+            for project in projects:
+                npv = self.calculate_npv(project['cash_flows'], rate, project['initial_investment'])
+                duration = self.calculate_duration(project['cash_flows'], rate)
+                
+                results.append({
+                    'project': project['name'],
+                    'interest_rate': rate,
+                    'npv': npv,
+                    'duration': duration,
+                    'color': project['color']
+                })
+        
+        return pd.DataFrame(results)
+    
+    def calculate_uniform_duration(self, n_periods, rate):
+        """Calcola la duration per una serie uniforme di pagamenti (formula 4 del paper)"""
+        if rate == 0:
+            return (n_periods + 1) / 2
+        
+        numerator = (1 + rate) / rate - (n_periods * rate) / ((1 + rate)**n_periods - 1)
+        return numerator
+    
+    def risk_adjusted_discount_rate(self, cash_flows, base_rate, risk_free_rate=0.02, market_return=0.05, beta=1):
+        """
+        Calcola il tasso di sconto aggiustato per il rischio usando CAPM + Duration
+        Equazione (6) del paper
+        """
+        
+        # Calcola duration del progetto
+        project_duration = self.calculate_duration(cash_flows, base_rate)
+        
+        # Calcola duration di riferimento (serie uniforme)
+        n_periods = len(cash_flows)
+        reference_duration = self.calculate_uniform_duration(n_periods, base_rate)
+        
+        # CAPM base
+        capm_rate = risk_free_rate + beta * (market_return - risk_free_rate)
+        
+        # Aggiustamento per duration
+        if reference_duration == 0:
+            return capm_rate
+        
+        duration_ratio = project_duration / reference_duration
+        
+        # Trova il tasso i che soddisfa l'equazione (6)
+        def equation(i):
+            project_duration_at_i = self.calculate_duration(cash_flows, i)
+            reference_duration_at_capm = self.calculate_uniform_duration(n_periods, capm_rate)
+            
+            left_side = i
+            right_side = risk_free_rate + beta * (market_return - risk_free_rate) * (project_duration_at_i / reference_duration_at_capm)
+            
+            return left_side - right_side
+        
+        try:
+            adjusted_rate = fsolve(equation, capm_rate)[0]
+            return max(0, adjusted_rate)
+        except:
+            # Fallback: aggiustamento semplificato
+            return capm_rate * duration_ratio
+    
+    def run_full_simulation(self):
+        """Esegue la simulazione completa del modello"""
+        
+        print("=== SIMULAZIONE DEL MODELLO ===\n")
+        
+        # 1. Crea i progetti
+        wooden, steel = self.create_bridge_projects()
+        projects = [wooden, steel]
+        
+        # 2. Trova il tasso di indifferenza
+        indiff_rate = self.find_indifference_rate(wooden, steel)
+        print(f"Tasso di indifferenza: {indiff_rate:.4f} ({indiff_rate*100:.2f}%)")
+        
+        # 3. NPV e Duration al tasso di indifferenza
+        print(f"\nAl tasso di indifferenza ({indiff_rate*100:.2f}%):")
+        for project in projects:
+            npv = self.calculate_npv(project['cash_flows'], indiff_rate, project['initial_investment'])
+            duration = self.calculate_duration(project['cash_flows'], indiff_rate)
+            print(f"{project['name']}: NPV = {npv:.2f}, Duration = {duration:.2f} anni")
+        
+        # 4. Test sensibilità (scenario del paper: da 5.48% a 7%)
+        print(f"\n=== ANALISI DI SENSIBILITÀ ===")
+        test_rates = [0.0548, 0.07]  # Tassi del paper
+        
+        for i, rate in enumerate(test_rates):
+            print(f"\nTasso {rate*100:.1f}%:")
+            base_npvs = {}
+            
+            for project in projects:
+                npv = self.calculate_npv(project['cash_flows'], rate, project['initial_investment'])
+                duration = self.calculate_duration(project['cash_flows'], rate)
+                base_npvs[project['name']] = npv
+                print(f"  {project['name']}: NPV = {npv:.2f}, Duration = {duration:.2f}")
+            
+            if i == 1:  # Secondo tasso, calcola variazioni
+                print(f"\nVariazioni da 5.48% a 7.0%:")
+                for project in projects:
+                    base_npv = self.calculate_npv(project['cash_flows'], 0.0548, project['initial_investment'])
+                    new_npv = base_npvs[project['name']]
+                    change = ((new_npv - base_npv) / base_npv) * 100
+                    print(f"  {project['name']}: {change:.1f}%")
+        
+        # 5. NPV Risk-Adjusted
+        print(f"\n=== NPV RISK-ADJUSTED ===")
+        base_rate = 0.05
+        
+        for project in projects:
+            # NPV standard
+            standard_npv = self.calculate_npv(project['cash_flows'], base_rate, project['initial_investment'])
+            
+            # Tasso aggiustato per il rischio
+            adjusted_rate = self.risk_adjusted_discount_rate(project['cash_flows'], base_rate)
+            
+            # NPV risk-adjusted
+            risk_adjusted_npv = self.calculate_npv(project['cash_flows'], adjusted_rate, project['initial_investment'])
+            
+            print(f"{project['name']}:")
+            print(f"  Tasso standard: {base_rate*100:.2f}% → NPV = {standard_npv:.2f}")
+            print(f"  Tasso aggiustato: {adjusted_rate*100:.2f}% → NPV = {risk_adjusted_npv:.2f}")
+            print(f"  Differenza: {risk_adjusted_npv - standard_npv:.2f}")
+        
+        # 6. Analisi di sensibilità completa
+        sensitivity_df = self.sensitivity_analysis(projects)
+        
+        self.results = {
+            'projects': projects,
+            'indifference_rate': indiff_rate,
+            'sensitivity_data': sensitivity_df
+        }
+        
+        return self.results
+    
+    def plot_results(self):
+        """Crea tutti i grafici del modello"""
+        
+        if not self.results:
+            print("Esegui prima run_full_simulation()")
+            return
+        
+        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        fig.suptitle('Simulazione flussi di cassa e duration', fontsize=16, fontweight='bold')
+        
+        df = self.results['sensitivity_data']
+        
+        # 1. NPV Profile (come nel paper)
+        ax1 = axes[0, 0]
+        for project_name in df['project'].unique():
+            project_data = df[df['project'] == project_name]
+            color = project_data['color'].iloc[0]
+            ax1.plot(project_data['interest_rate'] * 100, project_data['npv'], 
+                    label=project_name, linewidth=2, color=color)
+        
+        ax1.axhline(y=0, color='black', linestyle='--', alpha=0.5)
+        ax1.axvline(x=self.results['indifference_rate'] * 100, color='red', linestyle=':', alpha=0.7, label='Tasso di indifferenza')
+        ax1.set_xlabel('Tasso di Interesse (%)')
+        ax1.set_ylabel('NPV')
+        ax1.set_title('NPV Profile (Figura 1 del Paper)')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # 2. Duration vs Interest Rate (Figura 2 del paper)
+        ax2 = axes[0, 1]
+        for project_name in df['project'].unique():
+            project_data = df[df['project'] == project_name]
+            color = project_data['color'].iloc[0]
+            ax2.plot(project_data['interest_rate'] * 100, project_data['duration'], 
+                    label=project_name, linewidth=2, color=color)
+        
+        ax2.set_xlabel('Tasso di Interesse (%)')
+        ax2.set_ylabel('Duration (anni)')
+        ax2.set_title('Duration Profile (Figura 2 del Paper)')
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+        
+        # 3. Scatter NPV vs Duration (per mostrare trade-off rischio-rendimento)
+        ax3 = axes[1, 0]
+        
+        # Prendi solo alcuni tassi per chiarezza
+        sample_rates = [0.03, 0.05, 0.07, 0.10]
+        
+        for rate in sample_rates:
+            rate_data = df[df['interest_rate'] == rate]
+            ax3.scatter(rate_data['duration'], rate_data['npv'], 
+                       s=100, alpha=0.7, label=f'Tasso {rate*100:.0f}%')
+        
+        # Aggiungi etichette per i progetti
+        for idx, row in df[df['interest_rate'] == 0.05].iterrows():
+            ax3.annotate(row['project'].split()[0], 
+                        (row['duration'], row['npv']),
+                        xytext=(5, 5), textcoords='offset points', fontsize=9)
+        
+        ax3.set_xlabel('Duration (anni)')
+        ax3.set_ylabel('NPV')
+        ax3.set_title('Trade-off Rischio-Rendimento')
+        ax3.legend()
+        ax3.grid(True, alpha=0.3)
+        
+        # 4. Tabella riassuntiva dei risultati chiave
+        ax4 = axes[1, 1]
+        ax4.axis('tight')
+        ax4.axis('off')
+        
+        # Crea dati per la tabella
+        table_data = []
+        base_rate = 0.05
+        shock_rate = 0.07
+        
+        for project in self.results['projects']:
+            base_npv = self.calculate_npv(project['cash_flows'], base_rate, project['initial_investment'])
+            shock_npv = self.calculate_npv(project['cash_flows'], shock_rate, project['initial_investment'])
+            duration = self.calculate_duration(project['cash_flows'], base_rate)
+            change_pct = ((shock_npv - base_npv) / base_npv) * 100
+            
+            table_data.append([
+                project['name'],
+                f"{duration:.2f}",
+                f"{base_npv:.0f}",
+                f"{shock_npv:.0f}",
+                f"{change_pct:.1f}%"
+            ])
+        
+        columns = ['Progetto', 'Duration', 'NPV 5%', 'NPV 7%', 'Var %']
+        
+        table = ax4.table(cellText=table_data, colLabels=columns, 
+                         cellLoc='center', loc='center')
+        table.auto_set_font_size(False)
+        table.set_fontsize(10)
+        table.scale(1, 1.5)
+        
+        ax4.set_title('Risultati Chiave - Test di Stress sui Tassi', pad=20)
+        
+        plt.tight_layout()
+        plt.show()
+        
+        # Grafico aggiuntivo: Evolution nel tempo
+        self.plot_cash_flow_evolution()
+    
+    def plot_cash_flow_evolution(self):
+        """Grafico dell'evoluzione dei cash flow nel tempo"""
+        
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+        
+        projects = self.results['projects']
+        
+        # Subplot 1: Cash flows nel tempo
+        for project in projects:
+            periods = range(1, len(project['cash_flows']) + 1)
+            ax1.bar([p - 0.2 if project['name'] == 'Ponte di Legno' else p + 0.2 for p in periods], 
+                   project['cash_flows'], width=0.4, 
+                   label=project['name'], alpha=0.7, color=project['color'])
+        
+        ax1.set_xlabel('Periodo')
+        ax1.set_ylabel('Cash Flow')
+        ax1.set_title('Pattern dei Cash Flow nel Tempo')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # Subplot 2: Valore presente cumulativo
+        base_rate = 0.05
+        
+        for project in projects:
+            cumulative_pv = []
+            running_total = -project['initial_investment']
+            
+            for t, cf in enumerate(project['cash_flows'], 1):
+                pv_cf = cf / (1 + base_rate) ** t
+                running_total += pv_cf
+                cumulative_pv.append(running_total)
+            
+            periods = range(1, len(cumulative_pv) + 1)
+            ax2.plot(periods, cumulative_pv, marker='o', linewidth=2,
+                    label=project['name'], color=project['color'])
+        
+        ax2.axhline(y=0, color='black', linestyle='--', alpha=0.5)
+        ax2.set_xlabel('Periodo')
+        ax2.set_ylabel('NPV Cumulativo')
+        ax2.set_title('Recupero del Capitale nel Tempo (al 5%)')
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.show()
+    
+    def monte_carlo_simulation(self, n_simulations=1000, rate_volatility=0.02):
+        """
+        Simulazione Monte Carlo per mostrare l'effetto dell'incertezza sui tassi
+        """
+        
+        print(f"\n=== SIMULAZIONE MONTE CARLO ===")
+        print(f"Simulazioni: {n_simulations}")
+        print(f"Volatilità tassi: {rate_volatility*100:.1f}%")
+        
+        projects = self.results['projects']
+        base_rate = 0.05
+        
+        results_mc = {project['name']: [] for project in projects}
+        
+        # Genera tassi casuali con distribuzione normale
+        random_rates = np.random.normal(base_rate, rate_volatility, n_simulations)
+        random_rates = np.clip(random_rates, 0.001, 0.20)  # Limita tra 0.1% e 20%
+        
+        for rate in random_rates:
+            for project in projects:
+                npv = self.calculate_npv(project['cash_flows'], rate, project['initial_investment'])
+                results_mc[project['name']].append(npv)
+        
+        # Statistiche
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+        
+        # Histogram degli NPV
+        for project in projects:
+            npvs = results_mc[project['name']]
+            ax1.hist(npvs, bins=50, alpha=0.7, label=project['name'], color=project['color'])
+            
+            # Statistiche
+            mean_npv = np.mean(npvs)
+            std_npv = np.std(npvs)
+            prob_negative = np.mean([npv < 0 for npv in npvs]) * 100
+            
+            print(f"\n{project['name']}:")
+            print(f"  NPV medio: {mean_npv:.2f}")
+            print(f"  Deviazione standard: {std_npv:.2f}")
+            print(f"  Probabilità NPV < 0: {prob_negative:.1f}%")
+        
+        ax1.set_xlabel('NPV')
+        ax1.set_ylabel('Frequenza')
+        ax1.set_title('Distribuzione degli NPV (Monte Carlo)')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # Box plot per confronto
+        data_for_box = [results_mc[project['name']] for project in projects]
+        labels = [project['name'] for project in projects]
+        
+        ax2.boxplot(data_for_box, labels=labels)
+        ax2.set_ylabel('NPV')
+        ax2.set_title('Distribuzione NPV - Box Plot')
+        ax2.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.show()
+
+# Esecuzione della simulazione
+if __name__ == "__main__":
+    
+    # Crea il modello
+    model = Model()
+    
+    # Esegui la simulazione completa
+    results = model.run_full_simulation()
+    
+    # Crea i grafici
+    model.plot_results()
+    
+    # Monte Carlo (opzionale)
+    model.monte_carlo_simulation()
+    
+    print("\n=== CONCLUSIONI CHIAVE ===")
+    print("1. I progetti a lunga duration sono molto più sensibili ai cambiamenti dei tassi")
+    print("2. Durante i boom (tassi bassi), progetti rischiosi sembrano attraenti") 
+    print("3. Quando i tassi salgono, questi progetti subiscono perdite drammatiche")
+    print("4. L'NPV risk-adjusted aiuta a identificare i rischi nascosti")
+    print("5. La duration è un ottimo indicatore del rischio temporale")
+
+
+
+scrivimi un articolo scientifico su questo modello
