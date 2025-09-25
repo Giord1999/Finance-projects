@@ -11,11 +11,12 @@ from pandas_datareader import data as pdr
 from IPython.display import display, Latex
 from statsmodels.graphics.tsaplots import plot_acf
 
-yf.pdr_override()
+
 
 # import data
 def get_data(stocks, start, end):
-    df = pdr.get_data_yahoo(stocks, start, end)
+    # Use yfinance directly instead of pandas_datareader
+    df = yf.download(stocks, start=start, end=end)
     return df
 
 endDate = datetime.datetime.now()
@@ -131,12 +132,22 @@ vol = np.array(volatility)
 cons_set = [{'type':'ineq', 'fun': kappa_pos},
             {'type':'ineq', 'fun': sigma_pos}]
 
-theta0 = [1,3,1]
-opt = sc.optimize.minimize(fun=log_likelihood_OU, x0=theta0, args=(vol,), constraints=cons_set)
+# Improved initial guesses based on data
+theta0 = [1, np.mean(vol), np.std(vol)]
+# Add bounds for robustness (kappa > 0.01, theta > 0, sigma > 0.01)
+bounds = [(0.01, None), (0.01, None), (0.01, None)]
+opt = sc.optimize.minimize(fun=log_likelihood_OU, x0=theta0, args=(vol,), constraints=cons_set, bounds=bounds)
 
-kappa = round(opt.x[0],3)
-theta = round(opt.x[1],3)
-sigma = round(opt.x[2],3)
+if not opt.success:
+    print(f"Optimization failed: {opt.message}")
+    kappa = 1.0  # Default kappa
+    theta = np.mean(vol)  # Use data mean as default theta
+    sigma = np.std(vol)  # Use data std as default sigma
+else:
+    kappa = round(opt.x[0],3)
+    theta = round(opt.x[1],3)
+    sigma = round(opt.x[2],3)
+
 vol0 = vol[-1]
 
 for_kappa_hat = '$\hat{\kappa} = '+str(kappa)+'$'
@@ -147,7 +158,7 @@ print('The MLE for data is:')
 display(Latex(for_kappa_hat))
 display(Latex(for_theta_hat))
 display(Latex(for_sigma_hat))
-print('Last Volatility', round(vol0,3))
+print('Last Volatility', np.round(vol0,3))
 
 #Simulating Ornstein-Uhlenbeck process:
 # define parameters
@@ -168,10 +179,14 @@ drift_OU = mu(vol0, Time, kappa, theta)
 diffusion_OU = std(Time, kappa, sigma)
 vol_OU = drift_OU + diffusion_OU*Z
 
-plt.hist(vol_OU)
-plt.title('Ornstein-Uhlenbeck Continuous Distribution @ Time')
-plt.xlabel('Volatility')
-plt.show()
+# Check for NaN before plotting
+if np.any(np.isnan(vol_OU)):
+    print("Warning: vol_OU contains NaN. Skipping histogram plot.")
+else:
+    plt.hist(vol_OU)
+    plt.title('Ornstein-Uhlenbeck Continuous Distribution @ Time')
+    plt.xlabel('Volatility')
+    plt.show()
 
 #Discretised SDE 
 # Initialise Parameters for discretization
